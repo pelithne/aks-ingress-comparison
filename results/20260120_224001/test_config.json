@@ -1,0 +1,9 @@
+{
+    "timestamp": "2026-01-20T22:40:01+01:00",
+    "agc_url": "http://b9hjhdd6dyeuh3dg.fz41.alb.azure.com/api/time",
+    "nginx_url": "http://172.205.84.252/api/time",
+    "test_duration": "120s",
+    "concurrency": 10,
+    "warmup_requests": 50,
+    "endpoint_path": "/api/time"
+}
