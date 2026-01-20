@@ -194,11 +194,15 @@ run_hey_test() {
     local requests_per_sec=$(grep "Requests/sec:" "$output_file" | awk '{print $2}')
     local total_time=$(grep "Total:" "$output_file" | head -1 | awk '{print $2}')
     local avg_latency=$(grep "Average:" "$output_file" | head -1 | awk '{print $2}')
-    local total_requests=$(grep -E "^\s*Total:\s+[0-9]+" "$output_file" | awk '{print $2}' || grep "requests in" "$output_file" | awk '{print $1}')
     
-    # Get status code distribution
+    # Get status code distribution - this gives us total successful requests
     local status_200=$(grep "\[200\]" "$output_file" | awk '{print $2}' || echo "0")
-    local failed_requests=$((${total_requests:-0} - ${status_200:-0}))
+    
+    # Get total requests from the summary line (e.g., "37311 requests in 120.03s")
+    local total_requests=$(grep "requests in" "$output_file" | awk '{print $1}')
+    
+    # Calculate failed requests using bc for floating point safety
+    local failed_requests=$(echo "${total_requests:-0} - ${status_200:-0}" | bc 2>/dev/null || echo "0")
     
     # Parse latency distribution (hey outputs in seconds, convert to ms)
     local p50=$(grep "50% in" "$output_file" | awk '{print $3}' | sed 's/secs//')
@@ -406,14 +410,15 @@ main() {
         exit 1
     fi
     
-    # Warmup
-    print_header "Warmup Phase"
-    run_warmup "$AGC_FULL_URL" "AGC"
-    run_warmup "$NGINX_FULL_URL" "NGINX"
-    
-    # Run hey benchmark tests
+    # Run hey benchmark tests with warmup before each
     print_header "Load Testing with hey"
+    
+    print_info "=== Testing AGC ==="
+    run_warmup "$AGC_FULL_URL" "AGC"
     run_hey_test "$AGC_FULL_URL" "agc"
+    
+    print_info "=== Testing NGINX ==="
+    run_warmup "$NGINX_FULL_URL" "NGINX"
     run_hey_test "$NGINX_FULL_URL" "nginx"
     
     # Run detailed latency tests
