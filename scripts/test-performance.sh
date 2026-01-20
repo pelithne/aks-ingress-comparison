@@ -327,7 +327,7 @@ generate_summary() {
 {
     "timestamp": "$(date -Iseconds)",
     "test_config": {
-        "requests": $NUM_REQUESTS,
+        "duration": "$TEST_DURATION",
         "concurrency": $CONCURRENCY
     },
     "results": {
