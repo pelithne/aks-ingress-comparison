@@ -89,7 +89,7 @@ data:
     </head>
     <body>
         <div class="container">
-            <h1>🚀 AKS Ingress Performance Test</h1>
+            <h1>AKS Ingress Performance Test</h1>
             <p>This page is served by a simple NGINX container running in AKS.</p>
             
             <div class="info">
