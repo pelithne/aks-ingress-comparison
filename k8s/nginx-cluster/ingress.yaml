@@ -1,0 +1,38 @@
+# ============================================================================
+# NGINX Ingress Configuration for AKS with Web Application Routing
+# ============================================================================
+# This ingress configuration uses the managed NGINX ingress controller
+# provided by the Web Application Routing add-on in AKS.
+#
+# IngressClassName: webapprouting.kubernetes.azure.com
+# ============================================================================
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: demo-app-ingress
+  namespace: demo-app
+  annotations:
+    # Annotations for the Web Application Routing managed NGINX
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-body-size: "8m"
+    # Add response headers for debugging
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      add_header X-Ingress-Type "Managed-NGINX" always;
+      add_header X-Response-Time $request_time always;
+spec:
+  ingressClassName: webapprouting.kubernetes.azure.com
+  rules:
+  # Rule for the hostname (replace with actual hostname after deployment)
+  - http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: demo-app
+            port:
+              number: 80

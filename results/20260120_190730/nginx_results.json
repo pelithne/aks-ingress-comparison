@@ -1,0 +1,17 @@
+{
+    "endpoint": "nginx",
+    "url": "http://52.158.126.185/api/time",
+    "requests_per_second": 164.68,
+    "time_per_request_ms": 60.726,
+    "time_per_request_concurrent_ms": 6.073,
+    "transfer_rate_kbps": 48.73,
+    "total_time_seconds": 6.073,
+    "failed_requests": 0,
+    "percentiles": {
+        "p50_ms": 57,
+        "p75_ms": 58,
+        "p90_ms": 61,
+        "p95_ms": 65,
+        "p99_ms": 75
+    }
+}

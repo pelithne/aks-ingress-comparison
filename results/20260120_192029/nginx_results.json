@@ -1,0 +1,17 @@
+{
+    "endpoint": "nginx",
+    "url": "http://52.158.126.185/api/time",
+    "requests_per_second": 690.2794,
+    "avg_latency_ms": 28.8000,
+    "total_time_seconds": 1.4487,
+    "total_requests": 1000,
+    "successful_requests": 1000,
+    "failed_requests": 0,
+    "percentiles": {
+        "p50_ms": 27.8000,
+        "p75_ms": 28.5000,
+        "p90_ms": 29.5000,
+        "p95_ms": 30.8000,
+        "p99_ms": 63.2000
+    }
+}

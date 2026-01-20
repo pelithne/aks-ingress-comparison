@@ -1,0 +1,10 @@
+{
+    "agc": {
+        "clusterName": "akstest-agc-ka7we23m2mnvu",
+        "endpoint": "http://gjdxbcbtc2h2a6fq.fz92.alb.azure.com"
+    },
+    "nginx": {
+        "clusterName": "akstest-nginx-ka7we23m2mnvu",
+        "endpoint": "http://20.166.186.134"
+    }
+}

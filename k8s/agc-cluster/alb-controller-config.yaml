@@ -1,0 +1,28 @@
+# ============================================================================
+# ALB Controller Configuration for Application Gateway for Containers
+# ============================================================================
+# This manifest creates the ApplicationLoadBalancer custom resource that
+# connects the AKS cluster to the AGC Traffic Controller.
+#
+# Prerequisites:
+# 1. ALB Controller Helm chart must be installed
+# 2. Workload identity must be configured for the controller
+# ============================================================================
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: azure-alb-system
+  labels:
+    app: alb-controller
+---
+# ApplicationLoadBalancer CRD that links to the AGC Traffic Controller
+# Note: The ${AGC_SUBNET_ID} placeholder must be replaced with actual value
+apiVersion: alb.networking.azure.io/v1
+kind: ApplicationLoadBalancer
+metadata:
+  name: demo-alb
+  namespace: azure-alb-system
+spec:
+  associations:
+  - ${AGC_SUBNET_ID}

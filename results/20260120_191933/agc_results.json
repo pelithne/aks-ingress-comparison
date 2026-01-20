@@ -1,0 +1,17 @@
+{
+    "endpoint": "agc",
+    "url": "http://cfeqdfccexgbg7h3.fz70.alb.azure.com/api/time",
+    "requests_per_second": 562.2492,
+    "avg_latency_ms": 34.7000,
+    "total_time_seconds": 1.7786,
+    "total_requests": 1000,
+    "successful_requests": 1000,
+    "failed_requests": 0,
+    "percentiles": {
+        "p50_ms": 31.8000,
+        "p75_ms": 32.5000,
+        "p90_ms": 33.6000,
+        "p95_ms": 36.2000,
+        "p99_ms": 139.0000
+    }
+}

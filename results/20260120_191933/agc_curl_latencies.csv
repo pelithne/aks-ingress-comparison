@@ -1,0 +1,2 @@
+request_num,dns_lookup_ms,tcp_connect_ms,tls_handshake_ms,ttfb_ms,total_time_ms,http_code
+1,38.386000,71.165000,0,103.922000,104.063000,200

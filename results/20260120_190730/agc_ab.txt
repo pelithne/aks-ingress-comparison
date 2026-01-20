@@ -1,0 +1,54 @@
+This is ApacheBench, Version 2.3 <$Revision: 1879490 $>
+Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/
+Licensed to The Apache Software Foundation, http://www.apache.org/
+
+Benchmarking cfeqdfccexgbg7h3.fz70.alb.azure.com (be patient)
+Completed 100 requests
+Completed 200 requests
+Completed 300 requests
+Completed 400 requests
+Completed 500 requests
+Completed 600 requests
+Completed 700 requests
+Completed 800 requests
+Completed 900 requests
+Completed 1000 requests
+Finished 1000 requests
+
+
+Server Software:        Microsoft-Azure-Application-LB/AGC
+Server Hostname:        cfeqdfccexgbg7h3.fz70.alb.azure.com
+Server Port:            80
+
+Document Path:          /api/time
+Document Length:        16 bytes
+
+Concurrency Level:      10
+Time taken for tests:   108.122 seconds
+Complete requests:      1000
+Failed requests:        0
+Non-2xx responses:      1000
+Total transferred:      195000 bytes
+HTML transferred:       16000 bytes
+Requests per second:    9.25 [#/sec] (mean)
+Time per request:       1081.216 [ms] (mean)
+Time per request:       108.122 [ms] (mean, across all concurrent requests)
+Transfer rate:          1.76 [Kbytes/sec] received
+
+Connection Times (ms)
+              min  mean[+/-sd] median   max
+Connect:        0   43  96.6     32    1070
+Processing:   375 1035 110.2   1054    1071
+Waiting:       30   32   1.5     32      43
+Total:        406 1078 147.7   1087    2123
+
+Percentage of the requests served within a certain time (ms)
+  50%   1087
+  66%   1090
+  75%   1093
+  80%   1095
+  90%   1098
+  95%   1103
+  98%   1111
+  99%   1121
+ 100%   2123 (longest request)

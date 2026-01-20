@@ -1,0 +1,190 @@
+# ============================================================================
+# Sample Web Application - Common Deployment & Service
+# ============================================================================
+# This manifest deploys a simple NGINX-based web application that returns
+# a custom page with response timing information. Both clusters will use
+# the same application for fair performance comparison.
+# ============================================================================
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: demo-app
+  labels:
+    app: demo-app
+    purpose: performance-testing
+---
+# ConfigMap for the custom NGINX configuration and HTML page
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: demo-app-config
+  namespace: demo-app
+data:
+  nginx.conf: |
+    events {
+      worker_connections 1024;
+    }
+    http {
+      include /etc/nginx/mime.types;
+      default_type application/octet-stream;
+      
+      log_format main '$remote_addr - $remote_user [$time_local] "$request" '
+                      '$status $body_bytes_sent "$http_referer" '
+                      '"$http_user_agent" "$http_x_forwarded_for" '
+                      'rt=$request_time uct="$upstream_connect_time" '
+                      'uht="$upstream_header_time" urt="$upstream_response_time"';
+      
+      access_log /var/log/nginx/access.log main;
+      
+      server {
+        listen 80;
+        server_name _;
+        
+        location / {
+          root /usr/share/nginx/html;
+          index index.html;
+        }
+        
+        location /health {
+          return 200 'OK';
+          add_header Content-Type text/plain;
+        }
+        
+        location /api/time {
+          default_type application/json;
+          return 200 '{"timestamp": "$msec", "server": "$hostname", "request_id": "$request_id"}';
+        }
+      }
+    }
+  index.html: |
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>AKS Ingress Performance Test</title>
+        <style>
+            body { 
+                font-family: Arial, sans-serif; 
+                max-width: 800px; 
+                margin: 50px auto; 
+                padding: 20px;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                min-height: 100vh;
+            }
+            .container {
+                background: white;
+                border-radius: 10px;
+                padding: 30px;
+                box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            }
+            h1 { color: #333; }
+            .info { 
+                background: #f5f5f5; 
+                padding: 15px; 
+                border-radius: 5px; 
+                margin: 10px 0;
+            }
+            .timestamp { font-family: monospace; color: #667eea; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>🚀 AKS Ingress Performance Test</h1>
+            <p>This page is served by a simple NGINX container running in AKS.</p>
+            
+            <div class="info">
+                <strong>Purpose:</strong> Compare performance between Application Gateway for Containers and Managed NGINX Ingress
+            </div>
+            
+            <div class="info">
+                <strong>Endpoints for Testing:</strong>
+                <ul>
+                    <li><code>/</code> - This HTML page</li>
+                    <li><code>/api/time</code> - JSON response with timestamp</li>
+                    <li><code>/health</code> - Health check endpoint</li>
+                </ul>
+            </div>
+            
+            <div class="info">
+                <strong>Page Loaded:</strong> <span class="timestamp" id="load-time"></span>
+            </div>
+            
+            <script>
+                document.getElementById('load-time').textContent = new Date().toISOString();
+            </script>
+        </div>
+    </body>
+    </html>
+---
+# Deployment for the demo application
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-app
+  namespace: demo-app
+  labels:
+    app: demo-app
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: demo-app
+  template:
+    metadata:
+      labels:
+        app: demo-app
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:1.25-alpine
+        ports:
+        - containerPort: 80
+          name: http
+        volumeMounts:
+        - name: config
+          mountPath: /etc/nginx/nginx.conf
+          subPath: nginx.conf
+        - name: config
+          mountPath: /usr/share/nginx/html/index.html
+          subPath: index.html
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 256Mi
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 80
+          initialDelaySeconds: 3
+          periodSeconds: 5
+      volumes:
+      - name: config
+        configMap:
+          name: demo-app-config
+---
+# Service for the demo application
+apiVersion: v1
+kind: Service
+metadata:
+  name: demo-app
+  namespace: demo-app
+  labels:
+    app: demo-app
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 80
+    protocol: TCP
+    name: http
+  selector:
+    app: demo-app

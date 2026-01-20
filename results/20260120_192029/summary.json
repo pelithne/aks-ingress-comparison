@@ -1,0 +1,33 @@
+{
+    "timestamp": "2026-01-20T19:21:06+01:00",
+    "test_config": {
+        "requests": 1000,
+        "concurrency": 20
+    },
+    "results": {
+        "agc": {
+            "requests_per_second": 569.276,
+            "avg_latency_ms": 35,
+            "p50_ms": 32.6,
+            "p95_ms": 36.1,
+            "p99_ms": 137.6,
+            "failed_requests": 0
+        },
+        "nginx": {
+            "requests_per_second": 690.2794,
+            "avg_latency_ms": 28.8,
+            "p50_ms": 27.8,
+            "p95_ms": 30.8,
+            "p99_ms": 63.2,
+            "failed_requests": 0
+        }
+    },
+    "comparison": {
+        "rps_difference_percent": "21.00",
+        "p50_difference_percent": "-14.00",
+        "p95_difference_percent": "-14.00",
+        "p99_difference_percent": "-54.00",
+        "faster_rps": "NGINX",
+        "lower_latency_p50": "NGINX"
+    }
+}
