@@ -55,7 +55,7 @@ Both clusters use **Azure CNI Powered by Cilium** for consistent networking perf
 - `helm` installed
 - `jq` installed
 - `bc` installed (for performance tests)
-- `ab` (Apache Bench) installed (for performance tests)
+- `hey` installed (for performance tests) - [github.com/rakyll/hey](https://github.com/rakyll/hey)
 
 ## Quick Start
 
