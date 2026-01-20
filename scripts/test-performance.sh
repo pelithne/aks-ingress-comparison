@@ -9,7 +9,7 @@
 set -euo pipefail
 
 # Default configuration
-NUM_REQUESTS="${NUM_REQUESTS:-1000}"
+TEST_DURATION="${TEST_DURATION:-120s}"
 CONCURRENCY="${CONCURRENCY:-10}"
 ENDPOINT_PATH="${ENDPOINT_PATH:-/api/time}"
 OUTPUT_DIR="${OUTPUT_DIR:-./results}"
@@ -76,7 +76,7 @@ Required arguments:
   -n, --nginx-url     URL for NGINX ingress endpoint
 
 Optional arguments:
-  -r, --requests      Number of requests to send (default: $NUM_REQUESTS)
+  -d, --duration      Test duration (default: $TEST_DURATION)
   -c, --concurrency   Number of concurrent requests (default: $CONCURRENCY)
   -p, --path          Endpoint path to test (default: $ENDPOINT_PATH)
   -o, --output        Output directory for results (default: $OUTPUT_DIR)
@@ -84,7 +84,7 @@ Optional arguments:
   -h, --help          Show this help message
 
 Example:
-  $0 -a http://agc.example.com -n http://nginx.example.com -r 5000 -c 20
+  $0 -a http://agc.example.com -n http://nginx.example.com -d 120s -c 20
 
 EOF
     exit 1
@@ -102,8 +102,8 @@ parse_args() {
                 NGINX_URL="$2"
                 shift 2
                 ;;
-            -r|--requests)
-                NUM_REQUESTS="$2"
+            -d|--duration)
+                TEST_DURATION="$2"
                 shift 2
                 ;;
             -c|--concurrency)
@@ -155,7 +155,7 @@ setup_output() {
     "timestamp": "$(date -Iseconds)",
     "agc_url": "${AGC_URL}${ENDPOINT_PATH}",
     "nginx_url": "${NGINX_URL}${ENDPOINT_PATH}",
-    "num_requests": $NUM_REQUESTS,
+    "test_duration": "$TEST_DURATION",
     "concurrency": $CONCURRENCY,
     "warmup_requests": $WARMUP_REQUESTS,
     "endpoint_path": "$ENDPOINT_PATH"
@@ -185,19 +185,20 @@ run_hey_test() {
     
     print_info "Running hey benchmark test for $name..."
     print_info "URL: $url"
-    print_info "Requests: $NUM_REQUESTS, Concurrency: $CONCURRENCY"
+    print_info "Duration: $TEST_DURATION, Concurrency: $CONCURRENCY"
     
-    # Run hey and capture output
-    hey -n "$NUM_REQUESTS" -c "$CONCURRENCY" "$url" > "$output_file" 2>&1
+    # Run hey and capture output (duration-based test)
+    hey -z "$TEST_DURATION" -c "$CONCURRENCY" "$url" > "$output_file" 2>&1
     
     # Parse results from hey output
     local requests_per_sec=$(grep "Requests/sec:" "$output_file" | awk '{print $2}')
     local total_time=$(grep "Total:" "$output_file" | head -1 | awk '{print $2}')
     local avg_latency=$(grep "Average:" "$output_file" | head -1 | awk '{print $2}')
+    local total_requests=$(grep -E "^\s*Total:\s+[0-9]+" "$output_file" | awk '{print $2}' || grep "requests in" "$output_file" | awk '{print $1}')
     
     # Get status code distribution
     local status_200=$(grep "\[200\]" "$output_file" | awk '{print $2}' || echo "0")
-    local failed_requests=$((NUM_REQUESTS - ${status_200:-0}))
+    local failed_requests=$((${total_requests:-0} - ${status_200:-0}))
     
     # Parse latency distribution (hey outputs in seconds, convert to ms)
     local p50=$(grep "50% in" "$output_file" | awk '{print $3}' | sed 's/secs//')
@@ -219,10 +220,11 @@ run_hey_test() {
 {
     "endpoint": "$name",
     "url": "$url",
+    "test_duration": "$TEST_DURATION",
     "requests_per_second": ${requests_per_sec:-0},
     "avg_latency_ms": ${avg_ms},
     "total_time_seconds": ${total_time:-0},
-    "total_requests": $NUM_REQUESTS,
+    "total_requests": ${total_requests:-0},
     "successful_requests": ${status_200:-0},
     "failed_requests": ${failed_requests:-0},
     "percentiles": {
