@@ -25,7 +25,7 @@ git clone git@github.com:pelithne/aks-ingress-comparison.git
 cd aks-ingress-comparison
 ```
 
-### 2. Deploy Infrastructure
+### 2. Deploy Infrastructure and k8s Workloads
 
 ```bash
 # Deploy with defaults
