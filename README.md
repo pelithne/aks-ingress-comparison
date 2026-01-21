@@ -42,11 +42,8 @@ Both clusters use **Azure CNI Powered by Cilium** for consistent networking perf
 ## Features
 
 - **Azure CNI Powered by Cilium** - eBPF-based networking for high-performance
-- **Azure CNI Overlay mode** - Efficient IP address management
-- **Workload Identity** - Secure pod authentication to Azure services
 - **Azure RBAC for Kubernetes** - Integrated access management
-- **Log Analytics** - Centralized monitoring and logging
-- **Availability Zones** - High availability across 3 zones
+
 
 ## Prerequisites
 
