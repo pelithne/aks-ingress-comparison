@@ -374,10 +374,6 @@ EOF
     printf "%-10s %10s %10s %10s\n" "NGINX" "$nginx_p50" "$nginx_p95" "$nginx_p99"
     echo ""
     
-    echo -e "${GREEN}=== Winner ===${NC}"
-    echo "Higher Throughput: $(echo "$agc_rps > $nginx_rps" | bc -l | grep -q 1 && echo -e "${BLUE}AGC${NC}" || echo -e "${YELLOW}NGINX${NC}")"
-    echo "Lower Latency (P50): $(echo "$agc_p50 < $nginx_p50" | bc -l | grep -q 1 && echo -e "${BLUE}AGC${NC}" || echo -e "${YELLOW}NGINX${NC}")"
-    
     print_info "Full results saved to: ${RESULT_DIR}/summary.json"
 }
 
