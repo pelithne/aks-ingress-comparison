@@ -160,11 +160,13 @@ deploy_infrastructure() {
     VNET_NAME=$(echo "$DEPLOYMENT_OUTPUT" | jq -r '.properties.outputs.vnetName.value')
     APPGW_NAME=$(echo "$DEPLOYMENT_OUTPUT" | jq -r '.properties.outputs.appGwName.value // empty')
     APPGW_FQDN=$(echo "$DEPLOYMENT_OUTPUT" | jq -r '.properties.outputs.appGwFqdn.value // empty')
+    AGC_WAF_POLICY_ID=$(echo "$DEPLOYMENT_OUTPUT" | jq -r '.properties.outputs.agcWafPolicyId.value // empty')
     
     print_info "Infrastructure deployment complete!"
     print_info "AGC Cluster: $AGC_CLUSTER_NAME"
     print_info "NGINX Cluster: $NGINX_CLUSTER_NAME"
     print_info "Application Gateway: $APPGW_NAME"
+    print_info "WAF enabled on both gateways"
     
     # Save deployment info
     cat > "${ROOT_DIR}/.deployment-info.json" << EOF
@@ -177,6 +179,7 @@ deploy_infrastructure() {
     "vnetName": "$VNET_NAME",
     "appGwName": "$APPGW_NAME",
     "appGwFqdn": "$APPGW_FQDN",
+    "agcWafPolicyId": "$AGC_WAF_POLICY_ID",
     "deploymentName": "$DEPLOYMENT_NAME",
     "timestamp": "$(date -Iseconds)"
 }
@@ -423,6 +426,87 @@ deploy_nginx_cluster() {
     fi
 }
 
+# Deploy WAF for AGC using SecurityPolicy and WebApplicationFirewallPolicy CRD
+deploy_agc_waf() {
+    print_header "Deploying WAF for AGC"
+    
+    kubectl config use-context "agc-cluster"
+    
+    # Get the WAF Policy ID (created by Bicep)
+    AGC_WAF_POLICY_ID=$(az network application-gateway waf-policy show \
+        --name "${AGC_NAME}-waf-policy" \
+        --resource-group "$RESOURCE_GROUP" \
+        --query id -o tsv 2>/dev/null || echo "")
+    
+    if [[ -z "$AGC_WAF_POLICY_ID" ]]; then
+        print_warn "AGC WAF Policy not found. Skipping WAF deployment."
+        return 0
+    fi
+    
+    print_info "WAF Policy ID: $AGC_WAF_POLICY_ID"
+    
+    # Create SecurityPolicy on AGC via REST API
+    print_info "Creating SecurityPolicy on AGC..."
+    SUB_ID=$(az account show --query id -o tsv)
+    AGC_RESOURCE_ID="/subscriptions/${SUB_ID}/resourceGroups/${RESOURCE_GROUP}/providers/Microsoft.ServiceNetworking/trafficControllers/${AGC_NAME}"
+    
+    az rest --method PUT \
+        --uri "https://management.azure.com${AGC_RESOURCE_ID}/securityPolicies/agc-security-policy?api-version=2025-01-01" \
+        --body "{
+            \"location\": \"${LOCATION}\",
+            \"properties\": {
+                \"wafPolicy\": {
+                    \"id\": \"${AGC_WAF_POLICY_ID}\"
+                }
+            }
+        }" --output none 2>/dev/null || print_warn "SecurityPolicy may already exist"
+    
+    # Wait for SecurityPolicy to be provisioned
+    print_info "Waiting for SecurityPolicy to be provisioned..."
+    for i in {1..12}; do
+        STATUS=$(az rest --method GET \
+            --uri "https://management.azure.com${AGC_RESOURCE_ID}/securityPolicies/agc-security-policy?api-version=2025-01-01" \
+            --query 'properties.provisioningState' -o tsv 2>/dev/null || echo "")
+        if [[ "$STATUS" == "Succeeded" ]]; then
+            print_info "SecurityPolicy provisioned successfully"
+            break
+        fi
+        echo -n "."
+        sleep 5
+    done
+    echo ""
+    
+    # Create WebApplicationFirewallPolicy CRD
+    print_info "Creating WebApplicationFirewallPolicy CRD..."
+    cat <<EOF | kubectl apply -f -
+apiVersion: alb.networking.azure.io/v1
+kind: WebApplicationFirewallPolicy
+metadata:
+  name: agc-security-policy
+  namespace: demo-app
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: Gateway
+    name: demo-app-gateway
+  webApplicationFirewall:
+    id: "${AGC_WAF_POLICY_ID}"
+EOF
+    
+    # Wait for WAF policy to be deployed
+    print_info "Waiting for WAF policy to be deployed..."
+    for i in {1..12}; do
+        DEPLOYED=$(kubectl get webapplicationfirewallpolicy agc-security-policy -n demo-app -o jsonpath='{.status.deployment}' 2>/dev/null || echo "")
+        if [[ "$DEPLOYED" == "True" ]]; then
+            print_info "WAF policy deployed successfully"
+            break
+        fi
+        echo -n "."
+        sleep 5
+    done
+    echo ""
+}
+
 # Deploy applications to AGC cluster
 deploy_agc_cluster() {
     print_header "Deploying Application to AGC Cluster"
@@ -491,6 +575,9 @@ deploy_agc_cluster() {
         print_warn "Could not get AGC frontend address. Checking Gateway status..."
         kubectl describe gateway demo-app-gateway -n demo-app
     fi
+    
+    # Deploy WAF for AGC
+    deploy_agc_waf
 }
 
 # Print deployment summary

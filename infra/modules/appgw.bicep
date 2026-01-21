@@ -30,6 +30,9 @@ param sslCertificateData string
 @secure()
 param sslCertificatePassword string
 
+@description('Enable WAF on Application Gateway')
+param enableWaf bool = true
+
 @description('Resource tags')
 param tags object
 
@@ -37,16 +40,43 @@ param tags object
 // Resources
 // ============================================================================
 
-// Application Gateway v2
+// WAF Policy for Application Gateway
+resource wafPolicy 'Microsoft.Network/ApplicationGatewayWebApplicationFirewallPolicies@2024-05-01' = if (enableWaf) {
+  name: '${name}-waf-policy'
+  location: location
+  tags: tags
+  properties: {
+    policySettings: {
+      mode: 'Prevention'
+      state: 'Enabled'
+      requestBodyCheck: true
+      maxRequestBodySizeInKb: 128
+      fileUploadLimitInMb: 100
+    }
+    managedRules: {
+      managedRuleSets: [
+        {
+          ruleSetType: 'OWASP'
+          ruleSetVersion: '3.2'
+        }
+      ]
+    }
+  }
+}
+
+// Application Gateway v2 (with optional WAF)
 resource appGateway 'Microsoft.Network/applicationGateways@2024-05-01' = {
   name: name
   location: location
   tags: tags
   properties: {
     sku: {
-      name: 'Standard_v2'
-      tier: 'Standard_v2'
+      name: enableWaf ? 'WAF_v2' : 'Standard_v2'
+      tier: enableWaf ? 'WAF_v2' : 'Standard_v2'
     }
+    firewallPolicy: enableWaf ? {
+      id: wafPolicy.id
+    } : null
     autoscaleConfiguration: {
       minCapacity: 1
       maxCapacity: 3

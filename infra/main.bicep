@@ -183,7 +183,32 @@ module appGw 'modules/appgw.bicep' = {
     publicIpId: appGwPublicIp.id
     sslCertificateData: sslCertificateData
     sslCertificatePassword: sslCertificatePassword
+    enableWaf: true
     tags: tags
+  }
+}
+
+// WAF Policy for AGC (referenced via K8s CRD)
+resource agcWafPolicy 'Microsoft.Network/ApplicationGatewayWebApplicationFirewallPolicies@2024-05-01' = {
+  name: '${agcName}-waf-policy'
+  location: location
+  tags: tags
+  properties: {
+    policySettings: {
+      mode: 'Prevention'
+      state: 'Enabled'
+      requestBodyCheck: true
+      maxRequestBodySizeInKb: 128
+      fileUploadLimitInMb: 100
+    }
+    managedRules: {
+      managedRuleSets: [
+        {
+          ruleSetType: 'Microsoft_DefaultRuleSet'
+          ruleSetVersion: '2.1'
+        }
+      ]
+    }
   }
 }
 
@@ -223,6 +248,9 @@ output appGwFqdn string = appGwPublicIp.properties.dnsSettings.fqdn
 
 @description('Application Gateway v2 public IP address')
 output appGwPublicIpAddress string = appGwPublicIp.properties.ipAddress
+
+@description('AGC WAF Policy ID (for K8s CRD reference)')
+output agcWafPolicyId string = agcWafPolicy.id
 
 @description('Commands to get cluster credentials')
 output getCredentialsCommands object = {
