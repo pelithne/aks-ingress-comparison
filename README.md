@@ -20,12 +20,12 @@ Both clusters use **Azure CNI Powered by Cilium**.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                         AGC Cluster                                  │
+│                         AGC Cluster                                 │
 │  Client → AGC (HTTPS + WAF) → Gateway API → NGINX Pod               │
 └─────────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────┐
-│                        NGINX Cluster                                 │
+│                        NGINX Cluster                                │
 │  Client → App Gateway v2 (HTTPS + WAF) → NGINX Ingress → NGINX Pod  │
 └─────────────────────────────────────────────────────────────────────┘
 ```
