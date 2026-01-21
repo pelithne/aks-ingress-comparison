@@ -70,7 +70,24 @@ var subnets = {
     name: 'snet-agc'
     addressPrefix: '10.3.0.0/24'
   }
+  // Application Gateway v2 subnet for NGINX TLS termination
+  appGw: {
+    name: 'snet-appgw'
+    addressPrefix: '10.4.0.0/24'
+  }
 }
+
+// Application Gateway name
+var appGwName = '${baseName}-appgw-${uniqueSuffix}'
+
+// SSL Certificate parameters (passed from deploy script)
+@description('Base64 encoded PFX certificate for HTTPS')
+@secure()
+param sslCertificateData string = ''
+
+@description('Password for the PFX certificate')
+@secure()
+param sslCertificatePassword string = ''
 
 // ============================================================================
 // Resources
@@ -140,6 +157,36 @@ module agc 'modules/agc.bicep' = {
   }
 }
 
+// Public IP for Application Gateway v2
+resource appGwPublicIp 'Microsoft.Network/publicIPAddresses@2024-05-01' = {
+  name: '${appGwName}-pip'
+  location: location
+  tags: tags
+  sku: {
+    name: 'Standard'
+  }
+  properties: {
+    publicIPAllocationMethod: 'Static'
+    dnsSettings: {
+      domainNameLabel: '${baseName}-nginx-${uniqueSuffix}'
+    }
+  }
+}
+
+// Application Gateway v2 for NGINX cluster HTTPS termination
+module appGw 'modules/appgw.bicep' = {
+  name: 'appgw-deployment'
+  params: {
+    location: location
+    name: appGwName
+    subnetId: network.outputs.appGwSubnetId
+    publicIpId: appGwPublicIp.id
+    sslCertificateData: sslCertificateData
+    sslCertificatePassword: sslCertificatePassword
+    tags: tags
+  }
+}
+
 // ============================================================================
 // Outputs
 // ============================================================================
@@ -167,6 +214,15 @@ output logAnalyticsWorkspaceId string = logAnalytics.id
 
 @description('VNet name')
 output vnetName string = network.outputs.vnetName
+
+@description('Application Gateway v2 name')
+output appGwName string = appGw.outputs.name
+
+@description('Application Gateway v2 public IP FQDN')
+output appGwFqdn string = appGwPublicIp.properties.dnsSettings.fqdn
+
+@description('Application Gateway v2 public IP address')
+output appGwPublicIpAddress string = appGwPublicIp.properties.ipAddress
 
 @description('Commands to get cluster credentials')
 output getCredentialsCommands object = {

@@ -15,10 +15,11 @@ INFRA_DIR="${ROOT_DIR}/infra"
 K8S_DIR="${ROOT_DIR}/k8s"
 
 # Default values
-RESOURCE_GROUP="${RESOURCE_GROUP:-rg-aks-ingress-compare-09}"
+RESOURCE_GROUP="${RESOURCE_GROUP:-rg-aks-ingress-compare-10}"
 LOCATION="${LOCATION:-northeurope}"
 BASE_NAME="${BASE_NAME:-akstest}"
 DEPLOYMENT_NAME="aks-ingress-comparison"
+CERT_DIR="${CERT_DIR:-${ROOT_DIR}/.certs}"
 
 # Colors for output
 RED='\033[0;31m'
@@ -51,7 +52,7 @@ check_prerequisites() {
     
     local missing_tools=()
     
-    for tool in az kubectl helm jq; do
+    for tool in az kubectl helm jq openssl; do
         if ! command -v "$tool" &> /dev/null; then
             missing_tools+=("$tool")
         else
@@ -72,6 +73,50 @@ check_prerequisites() {
     
     print_info "Azure CLI is authenticated"
     print_info "Current subscription: $(az account show --query name -o tsv)"
+}
+
+# Generate self-signed TLS certificate
+generate_tls_certificate() {
+    print_header "Generating TLS Certificate"
+    
+    mkdir -p "$CERT_DIR"
+    
+    local CERT_KEY="${CERT_DIR}/tls.key"
+    local CERT_CRT="${CERT_DIR}/tls.crt"
+    local CERT_PFX="${CERT_DIR}/tls.pfx"
+    local CERT_PASSWORD="AksIngressTest123!"
+    
+    if [[ -f "$CERT_PFX" ]]; then
+        print_info "Certificate already exists, skipping generation"
+    else
+        print_info "Generating self-signed certificate..."
+        
+        # Generate private key and certificate
+        openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+            -keyout "$CERT_KEY" \
+            -out "$CERT_CRT" \
+            -subj "/CN=*.northeurope.cloudapp.azure.com/O=AKS-Ingress-Test" \
+            -addext "subjectAltName=DNS:*.northeurope.cloudapp.azure.com,DNS:*.alb.azure.com,DNS:*.fz05.alb.azure.com" \
+            2>/dev/null
+        
+        # Convert to PFX for Application Gateway
+        openssl pkcs12 -export \
+            -out "$CERT_PFX" \
+            -inkey "$CERT_KEY" \
+            -in "$CERT_CRT" \
+            -password "pass:${CERT_PASSWORD}" \
+            2>/dev/null
+        
+        print_info "Certificate generated: $CERT_PFX"
+    fi
+    
+    # Export for Bicep deployment
+    SSL_CERT_DATA=$(base64 -w0 "$CERT_PFX")
+    SSL_CERT_PASSWORD="$CERT_PASSWORD"
+    
+    # Store for later use (K8s secret)
+    export TLS_KEY_FILE="$CERT_KEY"
+    export TLS_CRT_FILE="$CERT_CRT"
 }
 
 # Deploy infrastructure with Bicep
@@ -103,6 +148,7 @@ deploy_infrastructure() {
         --resource-group "$RESOURCE_GROUP" \
         --template-file "${INFRA_DIR}/main.bicep" \
         --parameters baseName="$BASE_NAME" location="$LOCATION" \
+        --parameters sslCertificateData="$SSL_CERT_DATA" sslCertificatePassword="$SSL_CERT_PASSWORD" \
         --output json)
     
     # Extract outputs
@@ -112,10 +158,13 @@ deploy_infrastructure() {
     NGINX_CLUSTER_FQDN=$(echo "$DEPLOYMENT_OUTPUT" | jq -r '.properties.outputs.aksNginxFqdn.value')
     AGC_NAME=$(echo "$DEPLOYMENT_OUTPUT" | jq -r '.properties.outputs.agcName.value')
     VNET_NAME=$(echo "$DEPLOYMENT_OUTPUT" | jq -r '.properties.outputs.vnetName.value')
+    APPGW_NAME=$(echo "$DEPLOYMENT_OUTPUT" | jq -r '.properties.outputs.appGwName.value // empty')
+    APPGW_FQDN=$(echo "$DEPLOYMENT_OUTPUT" | jq -r '.properties.outputs.appGwFqdn.value // empty')
     
     print_info "Infrastructure deployment complete!"
     print_info "AGC Cluster: $AGC_CLUSTER_NAME"
     print_info "NGINX Cluster: $NGINX_CLUSTER_NAME"
+    print_info "Application Gateway: $APPGW_NAME"
     
     # Save deployment info
     cat > "${ROOT_DIR}/.deployment-info.json" << EOF
@@ -126,6 +175,8 @@ deploy_infrastructure() {
     "nginxClusterName": "$NGINX_CLUSTER_NAME",
     "agcName": "$AGC_NAME",
     "vnetName": "$VNET_NAME",
+    "appGwName": "$APPGW_NAME",
+    "appGwFqdn": "$APPGW_FQDN",
     "deploymentName": "$DEPLOYMENT_NAME",
     "timestamp": "$(date -Iseconds)"
 }
@@ -139,6 +190,8 @@ load_deployment_info() {
         NGINX_CLUSTER_NAME=$(jq -r '.nginxClusterName // empty' "${ROOT_DIR}/.deployment-info.json")
         AGC_NAME=$(jq -r '.agcName // empty' "${ROOT_DIR}/.deployment-info.json")
         VNET_NAME=$(jq -r '.vnetName // empty' "${ROOT_DIR}/.deployment-info.json")
+        APPGW_NAME=$(jq -r '.appGwName // empty' "${ROOT_DIR}/.deployment-info.json")
+        APPGW_FQDN=$(jq -r '.appGwFqdn // empty' "${ROOT_DIR}/.deployment-info.json")
     fi
     
     # If VNET_NAME is empty, query Azure for VNet in the resource group
@@ -313,6 +366,8 @@ install_alb_controller() {
 deploy_nginx_cluster() {
     print_header "Deploying Application to NGINX Cluster"
     
+    load_deployment_info
+    
     kubectl config use-context "nginx-cluster"
     
     # Deploy the common application
@@ -343,6 +398,28 @@ deploy_nginx_cluster() {
     if [[ -z "$NGINX_INGRESS_IP" ]]; then
         print_warn "Could not get NGINX ingress IP. Checking ingress status..."
         kubectl describe ingress demo-app-ingress -n demo-app
+    fi
+    
+    # Update Application Gateway backend pool with NGINX ingress IP
+    if [[ -n "$NGINX_INGRESS_IP" && -n "${APPGW_NAME:-}" ]]; then
+        print_info "Updating Application Gateway backend pool with NGINX ingress IP..."
+        az network application-gateway address-pool update \
+            --gateway-name "$APPGW_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "nginxBackendPool" \
+            --servers "$NGINX_INGRESS_IP" \
+            --output none
+        print_info "Application Gateway backend updated with NGINX IP: $NGINX_INGRESS_IP"
+        
+        # Get Application Gateway FQDN
+        APPGW_FQDN=$(az network public-ip show \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "${APPGW_NAME}-pip" \
+            --query 'dnsSettings.fqdn' -o tsv 2>/dev/null || echo "")
+        
+        if [[ -n "$APPGW_FQDN" ]]; then
+            print_info "NGINX (via App Gateway) HTTPS: https://$APPGW_FQDN"
+        fi
     fi
 }
 
@@ -375,6 +452,14 @@ deploy_agc_cluster() {
     print_info "Waiting for demo application to be ready..."
     kubectl wait --for=condition=available --timeout=120s deployment/demo-app -n demo-app
     
+    # Create TLS secret for AGC HTTPS termination
+    print_info "Creating TLS secret for AGC..."
+    kubectl create secret tls agc-tls-secret \
+        --cert="${TLS_CRT_FILE}" \
+        --key="${TLS_KEY_FILE}" \
+        -n demo-app \
+        --dry-run=client -o yaml | kubectl apply -f -
+    
     # Deploy ALB controller config with substituted values
     print_info "Deploying ApplicationLoadBalancer configuration..."
     sed "s|\${AGC_SUBNET_ID}|${AGC_SUBNET_ID}|g" "${K8S_DIR}/agc-cluster/alb-controller-config.yaml" | kubectl apply -f -
@@ -401,7 +486,7 @@ deploy_agc_cluster() {
     AGC_FRONTEND=$(kubectl get gateway demo-app-gateway -n demo-app -o jsonpath='{.status.addresses[0].value}' 2>/dev/null || echo "")
     
     if [[ -n "$AGC_FRONTEND" ]]; then
-        print_info "AGC Frontend: $AGC_FRONTEND"
+        print_info "AGC Frontend: https://$AGC_FRONTEND"
     else
         print_warn "Could not get AGC frontend address. Checking Gateway status..."
         kubectl describe gateway demo-app-gateway -n demo-app
@@ -411,6 +496,8 @@ deploy_agc_cluster() {
 # Print deployment summary
 print_summary() {
     print_header "Deployment Summary"
+    
+    load_deployment_info
     
     # Get endpoints
     kubectl config use-context "nginx-cluster"
@@ -423,10 +510,11 @@ print_summary() {
     echo -e "${GREEN}Location:${NC} $LOCATION"
     echo ""
     echo -e "${GREEN}AGC Cluster:${NC} $AGC_CLUSTER_NAME"
-    echo -e "${GREEN}AGC Endpoint:${NC} http://${AGC_FRONTEND}"
+    echo -e "${GREEN}AGC Endpoint (HTTPS):${NC} https://${AGC_FRONTEND}"
     echo ""
     echo -e "${GREEN}NGINX Cluster:${NC} $NGINX_CLUSTER_NAME"
-    echo -e "${GREEN}NGINX Endpoint:${NC} http://${NGINX_INGRESS_IP}"
+    echo -e "${GREEN}NGINX Backend IP:${NC} ${NGINX_INGRESS_IP}"
+    echo -e "${GREEN}NGINX Endpoint (HTTPS via AppGW):${NC} https://${APPGW_FQDN}"
     echo ""
     
     # Save endpoints
@@ -434,17 +522,20 @@ print_summary() {
 {
     "agc": {
         "clusterName": "$AGC_CLUSTER_NAME",
-        "endpoint": "http://${AGC_FRONTEND}"
+        "endpoint": "https://${AGC_FRONTEND}"
     },
     "nginx": {
         "clusterName": "$NGINX_CLUSTER_NAME",
-        "endpoint": "http://${NGINX_INGRESS_IP}"
+        "backendIp": "${NGINX_INGRESS_IP}",
+        "endpoint": "https://${APPGW_FQDN}"
     }
 }
 EOF
 
+    echo -e "${YELLOW}Note: Using self-signed certificates. Add -k flag to curl for testing.${NC}"
+    echo ""
     echo -e "${GREEN}To run performance tests:${NC}"
-    echo "  ./scripts/test-performance.sh -a http://${AGC_FRONTEND} -n http://${NGINX_INGRESS_IP}"
+    echo "  ./scripts/test-performance.sh -a https://${AGC_FRONTEND} -n https://${APPGW_FQDN}"
     echo ""
     echo -e "${GREEN}To access clusters:${NC}"
     echo "  kubectl config use-context agc-cluster"
@@ -529,6 +620,7 @@ done
 case "$COMMAND" in
     deploy)
         check_prerequisites
+        generate_tls_certificate
         deploy_infrastructure
         assign_cluster_roles
         get_cluster_credentials

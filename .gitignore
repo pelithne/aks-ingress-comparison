@@ -5,6 +5,9 @@ results/
 .deployment-info.json
 .endpoints.json
 
+# Generated certificates
+.certs/
+
 # OS files
 .DS_Store
 Thumbs.db

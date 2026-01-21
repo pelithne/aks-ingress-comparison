@@ -14,6 +14,7 @@ CONCURRENCY="${CONCURRENCY:-10}"
 ENDPOINT_PATH="${ENDPOINT_PATH:-/test}"
 OUTPUT_DIR="${OUTPUT_DIR:-./results}"
 WARMUP_REQUESTS="${WARMUP_REQUESTS:-50}"
+INSECURE="${INSECURE:-false}"
 
 # Colors for output
 RED='\033[0;31m'
@@ -81,10 +82,12 @@ Optional arguments:
   -p, --path          Endpoint path to test (default: $ENDPOINT_PATH)
   -o, --output        Output directory for results (default: $OUTPUT_DIR)
   -w, --warmup        Number of warmup requests (default: $WARMUP_REQUESTS)
+  -k, --insecure      Allow insecure HTTPS (self-signed certs)
   -h, --help          Show this help message
 
 Example:
   $0 -a http://agc.example.com -n http://nginx.example.com -d 120s -c 20
+  $0 -a https://agc.example.com -n https://nginx.example.com -k  # For HTTPS with self-signed certs
 
 EOF
     exit 1
@@ -121,6 +124,10 @@ parse_args() {
             -w|--warmup)
                 WARMUP_REQUESTS="$2"
                 shift 2
+                ;;
+            -k|--insecure)
+                INSECURE="true"
+                shift
                 ;;
             -h|--help)
                 usage
@@ -167,11 +174,16 @@ EOF
 run_warmup() {
     local url=$1
     local name=$2
+    local curl_opts="-s -o /dev/null -w \"\""
+    
+    if [[ "$INSECURE" == "true" ]]; then
+        curl_opts="-k $curl_opts"
+    fi
     
     print_info "Running $WARMUP_REQUESTS warmup requests for $name..."
     
     for i in $(seq 1 "$WARMUP_REQUESTS"); do
-        curl -s -o /dev/null -w "" "$url" || true
+        curl $curl_opts "$url" || true
     done
     
     print_info "Warmup complete for $name"
@@ -182,13 +194,20 @@ run_hey_test() {
     local url=$1
     local name=$2
     local output_file="${RESULT_DIR}/${name}_hey.txt"
+    local hey_opts=""
+    
+    if [[ "$INSECURE" == "true" ]]; then
+        hey_opts="-disable-keepalive=false"
+        # hey doesn't verify TLS certs by default, but we note it for clarity
+        print_info "Using insecure mode (self-signed certificates accepted)"
+    fi
     
     print_info "Running hey benchmark test for $name..."
     print_info "URL: $url"
     print_info "Duration: $TEST_DURATION, Concurrency: $CONCURRENCY"
     
     # Run hey and capture output (duration-based test)
-    hey -z "$TEST_DURATION" -c "$CONCURRENCY" "$url" > "$output_file" 2>&1
+    hey -z "$TEST_DURATION" -c "$CONCURRENCY" $hey_opts "$url" > "$output_file" 2>&1
     
     # Parse results from hey output
     local requests_per_sec=$(grep "Requests/sec:" "$output_file" | awk '{print $2}')
@@ -252,6 +271,11 @@ run_curl_test() {
     local url=$1
     local name=$2
     local output_file="${RESULT_DIR}/${name}_curl_latencies.csv"
+    local curl_opts=""
+    
+    if [[ "$INSECURE" == "true" ]]; then
+        curl_opts="-k"
+    fi
     
     print_info "Running detailed latency test for $name..."
     
@@ -262,7 +286,7 @@ run_curl_test() {
     local fail_count=0
     
     for i in $(seq 1 100); do
-        result=$(curl -s -o /dev/null -w "%{time_namelookup},%{time_connect},%{time_appconnect},%{time_starttransfer},%{time_total},%{http_code}" "$url" 2>/dev/null || echo "0,0,0,0,0,0")
+        result=$(curl $curl_opts -s -o /dev/null -w "%{time_namelookup},%{time_connect},%{time_appconnect},%{time_starttransfer},%{time_total},%{http_code}" "$url" 2>/dev/null || echo "0,0,0,0,0,0")
         
         # Convert to milliseconds
         IFS=',' read -r dns tcp tls ttfb total code <<< "$result"
@@ -385,6 +409,13 @@ main() {
     check_prerequisites
     setup_output
     
+    # Set curl options for endpoint verification
+    local curl_verify_opts=""
+    if [[ "$INSECURE" == "true" ]]; then
+        curl_verify_opts="-k"
+        print_info "Running in insecure mode (accepting self-signed certificates)"
+    fi
+    
     # Full URLs
     AGC_FULL_URL="${AGC_URL}${ENDPOINT_PATH}"
     NGINX_FULL_URL="${NGINX_URL}${ENDPOINT_PATH}"
@@ -392,14 +423,14 @@ main() {
     # Verify endpoints are reachable
     print_header "Verifying Endpoints"
     
-    if curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$AGC_FULL_URL" | grep -q "200"; then
+    if curl $curl_verify_opts -s -o /dev/null -w "%{http_code}" --max-time 10 "$AGC_FULL_URL" | grep -q "200"; then
         print_info "AGC endpoint is reachable"
     else
         print_error "AGC endpoint is not reachable: $AGC_FULL_URL"
         exit 1
     fi
     
-    if curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$NGINX_FULL_URL" | grep -q "200"; then
+    if curl $curl_verify_opts -s -o /dev/null -w "%{http_code}" --max-time 10 "$NGINX_FULL_URL" | grep -q "200"; then
         print_info "NGINX endpoint is reachable"
     else
         print_error "NGINX endpoint is not reachable: $NGINX_FULL_URL"

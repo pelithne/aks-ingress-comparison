@@ -8,6 +8,7 @@
 # 1. ALB Controller must be installed in the cluster
 # 2. ApplicationLoadBalancer CRD must be created
 # 3. The controller must have proper permissions via workload identity
+# 4. TLS secret 'agc-tls-secret' must be created in the namespace
 # ============================================================================
 
 # Gateway defines the AGC frontend that handles incoming traffic
@@ -21,6 +22,17 @@ metadata:
 spec:
   gatewayClassName: azure-alb-external
   listeners:
+  - name: https
+    protocol: HTTPS
+    port: 443
+    tls:
+      mode: Terminate
+      certificateRefs:
+      - kind: Secret
+        name: agc-tls-secret
+    allowedRoutes:
+      namespaces:
+        from: Same
   - name: http
     protocol: HTTP
     port: 80
@@ -28,7 +40,25 @@ spec:
       namespaces:
         from: Same
 ---
-# HTTPRoute defines how traffic should be routed to the backend service
+# HTTPRoute for HTTP to HTTPS redirect
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: http-redirect
+  namespace: demo-app
+spec:
+  parentRefs:
+  - name: demo-app-gateway
+    namespace: demo-app
+    sectionName: http
+  rules:
+  - filters:
+    - type: RequestRedirect
+      requestRedirect:
+        scheme: https
+        statusCode: 301
+---
+# HTTPRoute defines how HTTPS traffic should be routed to the backend service
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
@@ -38,6 +68,7 @@ spec:
   parentRefs:
   - name: demo-app-gateway
     namespace: demo-app
+    sectionName: https
   rules:
   - matches:
     - path:

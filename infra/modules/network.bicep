@@ -63,6 +63,69 @@ resource nsgAks 'Microsoft.Network/networkSecurityGroups@2024-05-01' = {
   }
 }
 
+// Network Security Group for Application Gateway subnet
+resource nsgAppGw 'Microsoft.Network/networkSecurityGroups@2024-05-01' = {
+  name: '${vnetName}-nsg-appgw'
+  location: location
+  tags: tags
+  properties: {
+    securityRules: [
+      {
+        name: 'AllowGatewayManager'
+        properties: {
+          priority: 100
+          direction: 'Inbound'
+          access: 'Allow'
+          protocol: 'Tcp'
+          sourcePortRange: '*'
+          destinationPortRange: '65200-65535'
+          sourceAddressPrefix: 'GatewayManager'
+          destinationAddressPrefix: '*'
+        }
+      }
+      {
+        name: 'AllowHTTPS'
+        properties: {
+          priority: 110
+          direction: 'Inbound'
+          access: 'Allow'
+          protocol: 'Tcp'
+          sourcePortRange: '*'
+          destinationPortRange: '443'
+          sourceAddressPrefix: '*'
+          destinationAddressPrefix: '*'
+        }
+      }
+      {
+        name: 'AllowHTTP'
+        properties: {
+          priority: 120
+          direction: 'Inbound'
+          access: 'Allow'
+          protocol: 'Tcp'
+          sourcePortRange: '*'
+          destinationPortRange: '80'
+          sourceAddressPrefix: '*'
+          destinationAddressPrefix: '*'
+        }
+      }
+      {
+        name: 'AllowAzureLoadBalancer'
+        properties: {
+          priority: 130
+          direction: 'Inbound'
+          access: 'Allow'
+          protocol: '*'
+          sourcePortRange: '*'
+          destinationPortRange: '*'
+          sourceAddressPrefix: 'AzureLoadBalancer'
+          destinationAddressPrefix: '*'
+        }
+      }
+    ]
+  }
+}
+
 // Virtual Network
 resource vnet 'Microsoft.Network/virtualNetworks@2024-05-01' = {
   name: vnetName
@@ -114,6 +177,16 @@ resource vnet 'Microsoft.Network/virtualNetworks@2024-05-01' = {
           ]
         }
       }
+      // Application Gateway v2 subnet for NGINX TLS termination
+      {
+        name: subnets.appGw.name
+        properties: {
+          addressPrefix: subnets.appGw.addressPrefix
+          networkSecurityGroup: {
+            id: nsgAppGw.id
+          }
+        }
+      }
     ]
   }
 }
@@ -136,3 +209,6 @@ output aksNginxSubnetId string = resourceId('Microsoft.Network/virtualNetworks/s
 
 @description('Application Gateway for Containers subnet resource ID')
 output agcSubnetId string = resourceId('Microsoft.Network/virtualNetworks/subnets', vnet.name, subnets.agc.name)
+
+@description('Application Gateway v2 subnet resource ID')
+output appGwSubnetId string = resourceId('Microsoft.Network/virtualNetworks/subnets', vnet.name, subnets.appGw.name)
