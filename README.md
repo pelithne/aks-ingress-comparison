@@ -64,21 +64,6 @@ The test script generates:
 
 - `summary.json` - Comparison summary with winner determination
 
-Example output:
-
-```
-=== Throughput (Requests/Second) ===
-AGC:                 1234.56 req/s
-NGINX:               1189.23 req/s
-Difference:          -3.67%
-
-=== Latency Percentiles (ms) ===
-Ingress         P50        P95        P99
-AGC              12         45         89
-NGINX            14         52         95
-
-```
-
 ## Configuration
 
 ### Bicep Parameters
