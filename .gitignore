@@ -1,0 +1,16 @@
+# Test results
+results/
+
+# Deployment info (contains dynamic endpoint data)
+.deployment-info.json
+.endpoints.json
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+.vscode/
+*.swp
+*.swo
+*~
