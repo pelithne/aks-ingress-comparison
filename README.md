@@ -5,7 +5,7 @@ This project deploys infrastructure for comparing two different ingress solution
 1. **Application Gateway for Containers (AGC)** - Azure's next-generation Layer 7 load balancer
 2. **Managed NGINX Ingress** - Web Application Routing add-on for AKS
 
-Both clusters use **Azure CNI Powered by Cilium** for consistent networking performance.
+Both clusters use **Azure CNI Powered by Cilium**.
 
 ## Prerequisites
 
