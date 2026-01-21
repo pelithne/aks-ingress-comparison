@@ -77,9 +77,6 @@ Ingress         P50        P95        P99
 AGC              12         45         89
 NGINX            14         52         95
 
-=== Winner ===
-Higher Throughput: AGC
-Lower Latency (P50): AGC
 ```
 
 ## Configuration
@@ -94,18 +91,6 @@ Lower Latency (P50): AGC
 | `nodeVmSize` | `Standard_DS4_v6` | VM size for nodes |
 | `nodeCount` | `1` | Initial node count |
 
-## Ingress Comparison
-
-| Feature | AGC | Managed NGINX |
-|---------|-----|---------------|
-| **Type** | Layer 7 Load Balancer | Ingress Controller |
-| **API** | Gateway API | Kubernetes Ingress |
-| **Managed By** | Azure | AKS Add-on |
-| **TLS Termination** | Yes | Yes |
-| **Path-based Routing** | Yes | Yes |
-| **Backend Health** | Yes | Yes |
-| **Autoscaling** | Yes (Azure managed) | HPA |
-| **Zone Redundancy** | Built-in | Via node placement |
 
 
 ## License
