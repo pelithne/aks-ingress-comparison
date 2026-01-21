@@ -38,10 +38,7 @@ cd aks-ingress-comparison
 ### 2. Run Performance Tests
 
 ```bash
-# Using saved endpoints
-./scripts/deploy.sh test
-
-# Or manually specify endpoints
+# Use endpoints from the "Deployment Summary"
 ./scripts/test-performance.sh -a http://agc-endpoint -n http://nginx-endpoint
 ```
 
