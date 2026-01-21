@@ -51,9 +51,9 @@ data:
           add_header Content-Type text/plain;
         }
         
-        location /api/time {
+        location /test {
           default_type application/json;
-          return 200 '{"timestamp": "$msec", "server": "$hostname", "request_id": "$request_id"}';
+          return 200 '{"status": "ok", "message": "static test response"}';
         }
       }
     }

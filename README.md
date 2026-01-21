@@ -55,7 +55,7 @@ The demo application exposes:
 | Endpoint | Description |
 |----------|-------------|
 | `/` | HTML page with application info |
-| `/api/time` | JSON response with timestamp (ideal for latency testing) |
+| `/test` | Static JSON response (used for performance testing) |
 | `/health` | Health check endpoint |
 
 ## Performance Test Output
