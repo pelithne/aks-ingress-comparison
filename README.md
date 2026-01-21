@@ -7,44 +7,6 @@ This project deploys infrastructure for comparing two different ingress solution
 
 Both clusters use **Azure CNI Powered by Cilium** for consistent networking performance.
 
-## Architecture
-
-```
-                    ┌───────────────────────────────────────────┐
-                    │              Azure Resource Group         │
-                    │                                           │
-   ┌────────────────┼───────────────────────────────────────────┼──────────────────────┐
-   │                │                                           │                      │
-   │    ┌───────────┴─────────────┐          ┌──────────────────┴──────────────────┐   │
-   │    │  AGC Traffic Controller │          │          Virtual Network            │   │
-   │    │  (snet-agc: 10.3.0.0/24)│          │          (10.0.0.0/8)               │   │
-   │    └───────────┬─────────────┘          └──────────────────┬──────────────────┘   │
-   │                │                                           │                      │
-   │    ┌───────────┴───────────┐            ┌──────────────────┴──────────────────┐   │
-   │    │   AKS Cluster (AGC)   │            │        AKS Cluster (NGINX)          │   │
-   │    │   snet-aks-agc        │            │        snet-aks-nginx               │   │
-   │    │   (10.1.0.0/16)       │            │        (10.2.0.0/16)                │   │
-   │    │                       │            │                                     │   │
-   │    │  ┌─────────────────┐  │            │       ┌─────────────────┐           │   │
-   │    │  │  Demo App       │  │            │       │  Demo App       │           │   │
-   │    │  │  (3 replicas)   │  │            │       │  (3 replicas)   │           │   │
-   │    │  └────────┬────────┘  │            │       └────────┬────────┘           │   │
-   │    │           │           │            │                │                    │   │
-   │    │  ┌────────┴────────┐  │            │       ┌────────┴────────┐           │   │
-   │    │  │  Gateway API    │  │            │       │  NGINX Ingress  │           │   │
-   │    │  │  (HTTPRoute)    │  │            │       │  (WAR Add-on)   │           │   │
-   │    │  └─────────────────┘  │            │       └─────────────────┘           │   │
-   │    └───────────────────────┘            └─────────────────────────────────────┘   │
-   │                                                                                   │
-   └───────────────────────────────────────────────────────────────────────────────────┘
-```
-
-## Features
-
-- **Azure CNI Powered by Cilium** - eBPF-based networking for high-performance
-- **Azure RBAC for Kubernetes** - Integrated access management
-
-
 ## Prerequisites
 
 - Azure CLI (`az`) installed and authenticated
@@ -89,31 +51,6 @@ cd aks-ingress-comparison
 ./scripts/deploy.sh cleanup
 ```
 
-## Project Structure
-
-```
-.
-├── infra/
-│   ├── main.bicep                  # Main orchestration template
-│   └── modules/
-│       ├── network.bicep           # VNet and subnets
-│       ├── aks-agc.bicep           # AKS cluster for AGC
-│       ├── aks-nginx.bicep         # AKS cluster with managed NGINX
-│       └── agc.bicep               # Application Gateway for Containers
-├── k8s/
-│   ├── common/
-│   │   └── demo-app.yaml           # Sample web application
-│   ├── agc-cluster/
-│   │   ├── alb-controller-config.yaml  # ALB Controller configuration
-│   │   └── gateway.yaml            # Gateway API resources
-│   └── nginx-cluster/
-│       └── ingress.yaml            # NGINX Ingress configuration
-├── scripts/
-│   ├── deploy.sh                   # Deployment orchestration script
-│   └── test-performance.sh         # Performance testing script
-└── README.md                       # This file
-```
-
 ## Test Endpoints
 
 The demo application exposes:
@@ -129,9 +66,6 @@ The demo application exposes:
 The test script generates:
 
 - `summary.json` - Comparison summary with winner determination
-- `agc_results.json` / `nginx_results.json` - Detailed Apache Bench results
-- `agc_curl_latencies.csv` / `nginx_curl_latencies.csv` - Detailed timing data
-- `agc_gnuplot.tsv` / `nginx_gnuplot.tsv` - Data for visualization
 
 Example output:
 
@@ -152,16 +86,6 @@ Lower Latency (P50): AGC
 ```
 
 ## Configuration
-
-### Environment Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `RESOURCE_GROUP` | `rg-aks-ingress-test` | Azure resource group name |
-| `LOCATION` | `eastus2` | Azure region |
-| `BASE_NAME` | `akstest` | Base name for resources |
-| `NUM_REQUESTS` | `1000` | Number of test requests |
-| `CONCURRENCY` | `10` | Concurrent connections |
 
 ### Bicep Parameters
 
@@ -186,33 +110,6 @@ Lower Latency (P50): AGC
 | **Autoscaling** | Yes (Azure managed) | HPA |
 | **Zone Redundancy** | Built-in | Via node placement |
 
-## Troubleshooting
-
-### Check cluster status
-```bash
-kubectl config use-context agc-cluster
-kubectl get pods -n demo-app
-kubectl get gateway -n demo-app
-
-kubectl config use-context nginx-cluster  
-kubectl get pods -n demo-app
-kubectl get ingress -n demo-app
-```
-
-### View logs
-```bash
-# AGC cluster
-kubectl logs -l app=demo-app -n demo-app --context agc-cluster
-
-# NGINX cluster
-kubectl logs -l app=demo-app -n demo-app --context nginx-cluster
-```
-
-### Check ALB Controller
-```bash
-kubectl get pods -n azure-alb-system --context agc-cluster
-kubectl logs -l app=alb-controller -n azure-alb-system --context agc-cluster
-```
 
 ## License
 
