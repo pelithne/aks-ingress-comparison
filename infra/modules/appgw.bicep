@@ -47,7 +47,7 @@ resource wafPolicy 'Microsoft.Network/ApplicationGatewayWebApplicationFirewallPo
   tags: tags
   properties: {
     policySettings: {
-      mode: 'Prevention'
+      mode: 'Detection'
       state: 'Enabled'
       requestBodyCheck: true
       maxRequestBodySizeInKb: 128

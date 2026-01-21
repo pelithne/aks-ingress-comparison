@@ -195,7 +195,7 @@ resource agcWafPolicy 'Microsoft.Network/ApplicationGatewayWebApplicationFirewal
   tags: tags
   properties: {
     policySettings: {
-      mode: 'Prevention'
+      mode: 'Detection'
       state: 'Enabled'
       requestBodyCheck: true
       maxRequestBodySizeInKb: 128
