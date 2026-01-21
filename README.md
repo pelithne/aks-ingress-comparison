@@ -32,7 +32,7 @@ cd aks-ingress-comparison
 ./scripts/deploy.sh deploy
 
 # Or with custom options
-./scripts/deploy.sh deploy -g my-rg -l westus2 -n mytest
+./scripts/deploy.sh deploy -g my-rg -l northeurope -n mytest
 ```
 
 ### 2. Run Performance Tests
